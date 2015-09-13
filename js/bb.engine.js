@@ -9,22 +9,34 @@ function bbParse(text)
 	return bbTag;
 }
 
-function BBTag(tag, value)
+function BBTag(tagArray, valueArray)
 {
-	if (tag)
-	{
-		//this.trimEnd(tag);
-		this.openTag = tag.join('');
-		this.tag = arrayTrim(tag).join('').toLowerCase();
-	}
-	if (value)
+	this.children = [];
+    // дочерние элементы могут быть трех типов:
+    // 1) массив символов - строка текста, без переносов
+    // 2) символ '\n' - пуста€ строка (можно было хранить пустой массив, но это дл€ оптимизации. —омнительно, кстати говор€.)
+    // 3) объект BBTag
+
+	if (tagArray)
+    {
+        //this.trimEnd(tag);
+        this.openTag = tagArray.join(''); // оригинальное написание тега
+        this.tag = arrayTrim(tagArray).join('').toLowerCase(); // без пробелов, в нижнем регистре, дл€ идентификации
+    }
+	if (valueArray)
 	{
 		//this.trimEnd(value);
-		this.value = value.join('');
+		this.value = valueArray.join('');
 	}
-	this.children = [];
 }
 
+/**
+ * ќбработка текста с ЅЅ-тегами
+ * @param parent родительский тег
+ * @param chars исходный текст в виде массива символов
+ * @param index индекс, с которого начинаем обработку
+ * @returns int индекс, на котором закончили обработку
+ */
 BBTag.prototype.parse = function (parent, chars, index)
 {
 	this.parent = parent;
@@ -32,6 +44,7 @@ BBTag.prototype.parse = function (parent, chars, index)
 	var tag = [];
 	var value = [];
 	var str = [];
+    var bbTag;
 	//var breakIndex = index;
 	while (index < chars.length)
 	{
@@ -80,7 +93,7 @@ BBTag.prototype.parse = function (parent, chars, index)
 					{
 						if (tag.length != 0)
 						{
-							var bbTag = new BBTag(tag, null);
+							bbTag = new BBTag(tag, null);
 							index = bbTag.parse(this, chars, index + 1);
 							if (this.closed)
 								return index;
@@ -182,7 +195,7 @@ BBTag.prototype.parse = function (parent, chars, index)
 					}
 					else if (ch == ']')
 					{
-						var bbTag = new BBTag(tag, value);
+						bbTag = new BBTag(tag, value);
 						index = bbTag.parse(this, chars, index + 1);
 						if (this.closed)
 							return index;
@@ -226,51 +239,30 @@ BBTag.prototype.parse = function (parent, chars, index)
 	
 	if (this.tag)
 		parent.pushBad(this);
-}
-
-/*
- “естирование обработки ошибок:
- + [
- + []
- + [a]
- + [/a]
- + [a][b]
- + [/a][/b]
- + [a][/b]
- + [/a][b]
- + [a][b][/a]
- + [a][/b][/a]
- + [a][b][c][/b][/a]
- + [a][b][/c][/b][/a]
- + [a][b][c][d][/c][/b][/a]
- + [a]-[b]-[c]-[/d]-[/c]-[/b]-[/a]
- + [a][b][c][/b][d][e][/d][/a]
- + [a][b][c][/b][d][e][/d][/f]
- + [a][b][/a][/b]
- + [a]-
- + [a][b][c][/a]
- + [a][/b][/c][/a]
-*/
+};
 
 BBTag.prototype.tryClose = function(tag) // tag - строка в нижнем регистре без пробелов в начале и в конце
 {
-	//alert(this.tag  +' tryClose ' + tag);
+	// если закрывающий тег соответствует нашему, просто закрываем
+    // иначе пытаемс€ закрыть родител€
 	if (this.tag == tag)
 		return this;
 	if (this.parent)
 		return this.parent.tryClose(tag);
 	return false;
-}
+};
 
+/**
+ * ƒописывает незакрытый тег как дочерний элемент
+ * @param bbTag
+ */
 BBTag.prototype.pushBad = function(bbTag)
 {
-	//alert(this.tag + '.pushBad ' + bbTag);
 	var bb = [ '[', bbTag.openTag ];
 	if (bbTag.value != null)
 		bb.push('=', bbTag.value);
 	bb.push(']');
 	bb = bb.join('').split('');
-	// если последний в children - строка, можно дописать все в нее
 	this.pushChild(bb);
 	for (var i = 0; i < bbTag.children.length; ++i)
 	{
@@ -282,65 +274,60 @@ BBTag.prototype.pushBad = function(bbTag)
 		else
 			this.children.push(child);
 	}
-	/*
-	if (this.children.length != 0)
-	{
-		var lastChild = this.children[this.children.length - 1];
-		if (lastChild instanceof Array)
-		{
-			BBTag.prototype.pushChars(lastChild, bb.join('').split(''));
-			var i = 0;
-			while (bbTag.children.len != i && bbTag.children[i] instanceof Array)
-			{
-				BBTag.prototype.pushChars(lastChild, bbTag.children[i]);
-				++i;
-			}
-			bbTag.children = bbTag.children.slice(i);
-			this.children.push.apply(this.children, bbTag.children);
-			return;
-		}
-	}
-	this.children.push(bb.join(''));
-	this.children.push.apply(this.children, bbTag.children);
-	*/
-	//alert(this.tag + ' after pushBad\n' + this.toString());
-}
+};
 
-BBTag.prototype.pushChar = function(ar, ch)
+/**
+ * ƒобавл€ет символ в массив
+ * @param textArray
+ * @param char
+ */
+BBTag.prototype.pushChar = function(textArray, char)
 {
-	if (isSpace(ch))
+	if (isSpace(char))
 	{
 		//if (ar.length == 0) // не добавл€ем пробел вначале
 		//	return;
-		if (ar.length != 0 && isSpace(ar[ar.length - 1])) // не добавл€ем пробел после пробела
+		if (textArray.length != 0 && isSpace(textArray[textArray.length - 1])) // не добавл€ем пробел после пробела
 			return;
 	}
-	ar.push(ch);
-}
+	textArray.push(char);
+};
 
-BBTag.prototype.pushChars = function(ar1, ar2)
+/**
+ * ƒобавл€ет элементы второго массива в первый массив
+ * @param textArray1
+ * @param textArray2
+ */
+BBTag.prototype.pushChars = function(textArray1, textArray2)
 {
-	ar1.push.apply(ar1, ar2);
-}
+	textArray1.push.apply(textArray1, textArray2);
+};
 
-BBTag.prototype.pushChild = function(ar)
+/**
+ * ƒобавл€ет массив символов (строка без переносов) как дочерний элемент
+ * @param textArray
+ */
+BBTag.prototype.pushChild = function(textArray)
 {
 	var len = this.children.length;
 	if (len != 0)
 	{
 		var last = this.children[len - 1];
-		if (last instanceof Array)
+		if (last instanceof Array) // последний дочерний элемент - массив символов, так что дописываем к нему
 		{
-			this.pushChars(last, ar);
+			this.pushChars(last, textArray);
 			return;
 		}
 		if (last == '\n')
-			this.trimStart(ar);
+			this.trimStart(textArray);
 	}
-	if (ar.length != 0)
-		this.children.push(ar);
-}
+	if (textArray.length != 0)
+		this.children.push(textArray);
+};
 
+/**
+ * ƒобавл€ет \n как дочерний элемент (пуста€ строка)
+ */
 BBTag.prototype.pushN = function()
 {
 	var len = this.children.length;
@@ -356,29 +343,34 @@ BBTag.prototype.pushN = function()
 		}
 	}
 	this.children.push('\n');
-}
+};
 
-BBTag.prototype.trimStart = function(ar)
+BBTag.prototype.trimStart = function(textArray)
 {
-	if (ar.length == 0)
+    if (textArray.length == 0)
+        return;
+    if (isSpace(textArray[0]))
+        textArray.shift();
+};
+
+BBTag.prototype.trimEnd = function(textArray)
+{
+	if (textArray.length == 0)
 		return;
-	if (isSpace(ar[0]))
-		ar.shift();
-}
+	if (isSpace(textArray[textArray.length - 1]))
+		--textArray.length;
+};
 
-BBTag.prototype.trimEnd = function(ar)
+/**
+ * ”дал€ет все пустые строки в дочерних элементах, начина€ с index
+ * @param index
+ */
+BBTag.prototype.skipEmpty = function(index)
 {
-	if (ar.length == 0)
-		return;
-	if (isSpace(ar[ar.length - 1]))
-		--ar.length;
-}
-
-BBTag.prototype.skipEmpty = function(i)
-{
-	while (this.children.length > i && this.children[i] == '\n')
-		this.children.splice(i, 1);
-}
+    // TODO переделать на один вызов splice
+    while (index < this.children.length && this.children[index] === '\n')
+        this.children.splice(index, 1);
+};
 
 BBTag.prototype.toString = function()
 {
@@ -390,44 +382,56 @@ BBTag.prototype.toString = function()
 			out.push('=', this.value);
 		out.push(']');
 	}
-	out.push(this.childrenToString());
+    this.appendChildrenTo(out);
 	if (this.tag != null)
 		out.push('[/', this.closeTag, ']');
 	return out.join('');
-}
+};
 
 BBTag.prototype.childrenToString = function()
 {
 	var out = [];
-	for (var i = 0; i < this.children.length; i++)
-	{
-		var child = this.children[i];
-		if (child instanceof BBTag)
-			out.push(child.toString());
-		else if (child instanceof Array)
-			out.push(child.join(''));
-		else
-			out.push(child);
-	}
+	this.appendChildrenTo(out);
 	return out.join('');
-}
+};
 
-function arrayTrim(s)
+BBTag.prototype.appendChildrenTo = function(outArray)
 {
+    for (var i = 0; i < this.children.length; i++)
+    {
+        var child = this.children[i];
+        if (child instanceof BBTag)
+            outArray.push(child.toString());
+        else if (child instanceof Array)
+            outArray.push(child.join(''));
+        else // \n
+            outArray.push(child);
+    }
+};
+
+/**
+ * ¬озвращает массив без пробельных символов в начале и в конце
+ * @param textArray
+ * @returns {*}
+ */
+function arrayTrim(textArray)
+{
+	if (!(textArray instanceof Array))
+        return null;
 	var start = 0;
-	var ch = s[start];
+	var ch = textArray[start];
 	while (isSpace(ch))
 	{
 		++start;
-		if (s.length == start)
+		if (textArray.length == start)
 			return [];
-		ch = s[start];
+		ch = textArray[start];
 	}
-	var end = s.length - 1;
-	ch = s[end];
+	var end = textArray.length - 1;
+	ch = textArray[end];
 	while (isSpace(ch))
-		ch = s[--end];
-	return s.slice(start, end + 1);
+		ch = textArray[--end];
+	return textArray.slice(start, end + 1);
 }
 
 var strTrim = String.prototype.trim
@@ -437,11 +441,11 @@ var strTrim = String.prototype.trim
 		if (!s || !isSpace(s[0]) && !isSpace(s[s.length - 1]))
 			return s;
 		return arrayTrim(s.split('')).join('');
-	}
+	};
 
-function isSpace(ch)
+function isSpace(char)
 {
-	return ch == ' ' || ch == '\t' || ch == '\n';
+    return char === ' ' || char === '\t' || char === '\n';
 }
 
 /*
