@@ -7,8 +7,13 @@ Upl = function()
 	var _fieldlimits = [900, 12000, 1200, 16000]; // максимальный размер каждого поля
 	var _modes = [1, 1, 1, 1]; // текущие режимы каждого поля (0 - обычный, 1 - расширенный)
 	var _template = 0; // выбранный тип раздачи (1 - Видео, 2 - Музыка, 3 - Игра, ... )
-	
-	function _editMode()	{ _add = 0; }
+
+	function _editMode(addTorrentListener)
+    {
+        _add = 0;
+        if (addTorrentListener)
+            _addTorrentListener();
+    }
 	
 	function _showTemplates()
 	{
@@ -22,10 +27,14 @@ Upl = function()
 			ul.appendChild(li);
 			form[i].domTitle = li;
 		}
-		
-		if (Torrent.supported()) // добавляем авторасчет размера торрент-файла
-			Torrent.setListener(document.forms['upt'].elements['file'], onSizeChanged);
+        _addTorrentListener();
 	}
+
+    function _addTorrentListener()
+    {
+        if (Torrent.supported()) // добавляем авторасчет размера торрент-файла
+            Torrent.setListener(document.forms['upt'].elements['file'], _onSizeChanged);
+    }
 
     /**
      * Указывает тип раздачи (Видео, Музыка и т.п.), который нужно отобразить
@@ -304,21 +313,21 @@ Upl = function()
 	
 	function _edit() { post('takeedit.php', '_self', 0, 0); }
 	
-	var torrentSize;
-	function onSizeChanged(size)
+	var _torrentSize;
+	function _onSizeChanged(size)
 	{
-		torrentSize = size;
+		_torrentSize = size;
 		if (!_modes[2])
 			_setSize();
 	}
 	
 	function _setSize()
 	{
-		if (torrentSize)
+		if (_torrentSize)
 		{
 			var item = UF.el('size' + _template);
 			if (item)
-				item.value = torrentSize;
+				item.value = _torrentSize;
 		}
 	}
 	

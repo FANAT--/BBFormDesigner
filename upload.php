@@ -211,7 +211,7 @@ if ($from != 0)
                     Upl.showTemplates();
                     Upl.setTemplate(1);
 <?php else: ?>
-                    Upl.editMode();
+                    Upl.editMode(1);
                     Upl.setTemplate(<?=torrent('section')?>);
 <?php endif ?>
                     Upl.changeMode(0);
